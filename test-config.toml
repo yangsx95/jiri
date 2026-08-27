@@ -1,0 +1,17 @@
+[paths]
+inbox = "/Volumes/Resources/日课视频"
+archive = "/Volumes/Resources/Vlog"
+
+[import]
+mode = "move"
+video_extensions = [".mp4", ".mov", ".m4v"]
+duplicate_policy = "skip_by_hash"
+missing_capture_time = "fallback_then_review"
+
+[transcription]
+enabled = false
+profile = "accurate"
+model = "large-v3"
+language = "zh"
+device = "auto"
+compute_type = "auto"

@@ -1,0 +1,28 @@
+# jiri
+
+积日：你的日课视频档案库。
+
+`jiri` 是一个本地优先的命令行工具，用于将每周导入的视频按拍摄时间归档，并在 Mac 上生成可供 AI 使用的结构化 JSON 和本地转写结果。
+
+## 当前目标
+
+- 从固定 `inbox` 扫描原始视频
+- 按拍摄时间归档到 `YYYY/MM`
+- 保留原始视频内容，只移动和统一命名
+- 用 SHA-256 识别重复文件
+- 生成同名 JSON 旁车文件
+- 使用本地 Whisper 转写普通话
+- 支持断点、失败重试和可配置转写档位
+- 为未来的文本分类、摘要和 NAS 文件来源预留接口
+
+首次使用转写时执行：
+
+```bash
+jiri setup --transcription --backend mlx
+```
+
+该命令会安装本地转写后端并下载 Whisper 模型。之后直接运行 `jiri transcribe` 即可。
+
+## 规划
+
+详细技术方案见 [docs/technical-plan.md](docs/technical-plan.md)。
