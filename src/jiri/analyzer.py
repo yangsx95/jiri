@@ -16,6 +16,11 @@ from .config import AnalysisConfig, AnalysisDimension, DEFAULT_DAILY_PROMPT, DEF
 
 PROMPT_VERSION = "daily-review-v1"
 REVIEW_PROMPT_VERSION = "weekly-review-v1"
+MAX_ANALYSIS_OUTPUT_TOKENS = 4096
+
+
+class EmptyAnalysisResponseError(RuntimeError):
+    """JSON 模式偶发空响应时触发可重试错误。"""
 
 
 class Evidence(BaseModel):
@@ -193,26 +198,28 @@ def _request_json(config: AnalysisConfig, system_prompt: str, payload: dict[str,
     )
 
     @retry(
-        retry=retry_if_exception_type((ConnectionError, TimeoutError)),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, EmptyAnalysisResponseError)),
         wait=wait_exponential(min=1, max=8),
         stop=stop_after_attempt(3),
         reraise=True,
     )
     def create_completion():
-        return client.chat.completions.create(
+        response = client.chat.completions.create(
             model=config.model,
             temperature=0.2,
+            max_tokens=MAX_ANALYSIS_OUTPUT_TOKENS,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": schema_prompt},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
         )
+        if not response.choices[0].message.content:
+            raise EmptyAnalysisResponseError("分析 API 连续返回空内容，请稍后重试")
+        return response
 
     response = create_completion()
     content = response.choices[0].message.content
-    if not content:
-        raise RuntimeError("分析 API 返回了空内容")
     try:
         return schema.model_validate_json(content)
     except Exception as error:

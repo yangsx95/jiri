@@ -117,6 +117,30 @@ def test_daily_analysis_validates_json_response(monkeypatch) -> None:
     assert "TOML 内联的日分析提示词" in system_prompt
 
 
+def test_daily_analysis_retries_empty_api_content(monkeypatch) -> None:
+    dimensions = [
+        {"id": item.id, "label": item.label, "assessment": "有记录", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "next_action": None}
+        for item in AnalysisConfig().dimensions
+    ]
+    valid_content = json.dumps({
+        "summary": "完成第一章", "completed_items": ["第一章"], "planned_items": [], "blockers": [], "highlights": [],
+        "dimension_assessments": dimensions, "improvements": [], "tomorrow_focus": [], "confidence": "high",
+    })
+    calls = []
+
+    def create(self, **kwargs):
+        calls.append(kwargs)
+        content = None if len(calls) == 1 else valid_content
+        return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": content})()})()]})()
+
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": type("Completions", (), {"create": create})()})()})()
+    monkeypatch.setattr(analyzer, "_client", lambda config: client)
+
+    result = analyzer.analyze_daily_record(_record(), AnalysisConfig(enabled=True, model="test-model"))
+    assert result["status"] == "completed"
+    assert len(calls) == 2
+
+
 def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
     text = default_config_text(tmp_path / "inbox", tmp_path / "archive")
     assert "[analysis]" in text
