@@ -67,13 +67,6 @@ review_prompt = """
 """
 ```
 
-也可改为指定外部文本文件（当两者同时存在时，TOML 内容优先）：
-
-```toml
-[analysis]
-daily_prompt_file = "prompts/daily-review.txt"
-review_prompt_file = "prompts/period-review.txt"
-```
 
 ## 规划
 

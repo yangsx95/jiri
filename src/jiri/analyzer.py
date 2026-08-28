@@ -74,13 +74,13 @@ def analyze_daily_record(record: dict[str, Any], config: AnalysisConfig) -> dict
             for item in segments
         ],
     }
-    prompt = _resolve_prompt(config.daily_prompt, config.daily_prompt_file, DAILY_SYSTEM_PROMPT, "日分析")
+    prompt = _resolve_prompt(config.daily_prompt, DAILY_SYSTEM_PROMPT)
     result = _request_json(config, prompt, payload, DailyReview)
     return {
         "status": "completed",
         "model": config.model,
         "prompt_version": PROMPT_VERSION,
-        **_prompt_metadata(config.daily_prompt, config.daily_prompt_file, prompt),
+        **_prompt_metadata(config.daily_prompt, prompt),
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         **result.model_dump(),
     }
@@ -96,13 +96,13 @@ def analyze_period(records: list[dict[str, Any]], config: AnalysisConfig, date_f
             for record in records
         ],
     }
-    prompt = _resolve_prompt(config.review_prompt, config.review_prompt_file, PERIOD_SYSTEM_PROMPT, "周期回顾")
+    prompt = _resolve_prompt(config.review_prompt, PERIOD_SYSTEM_PROMPT)
     result = _request_json(config, prompt, payload, PeriodReview)
     return {
         "status": "completed",
         "model": config.model,
         "prompt_version": REVIEW_PROMPT_VERSION,
-        **_prompt_metadata(config.review_prompt, config.review_prompt_file, prompt),
+        **_prompt_metadata(config.review_prompt, prompt),
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "period": payload["period"],
         "source_videos": len(records),
@@ -134,29 +134,21 @@ def validate_analysis_config(config: AnalysisConfig) -> None:
     """在处理任何视频前验证分析环境，避免配置错误污染旁车状态。"""
 
     _client(config)
-    _resolve_prompt(config.daily_prompt, config.daily_prompt_file, DAILY_SYSTEM_PROMPT, "日分析")
-    _resolve_prompt(config.review_prompt, config.review_prompt_file, PERIOD_SYSTEM_PROMPT, "周期回顾")
+    _resolve_prompt(config.daily_prompt, DAILY_SYSTEM_PROMPT)
+    _resolve_prompt(config.review_prompt, PERIOD_SYSTEM_PROMPT)
 
 
-def _resolve_prompt(inline: str | None, path, default: str, label: str) -> str:
+def _resolve_prompt(inline: str | None, default: str) -> str:
     """把用户偏好追加到内置契约后，禁止用配置替换输出规范。"""
 
-    custom = inline
-    if custom is None and path is not None:
-        try:
-            custom = path.read_text(encoding="utf-8").strip()
-        except OSError as error:
-            raise RuntimeError(f"无法读取{label}提示词文件：{path}") from error
-        if not custom:
-            raise RuntimeError(f"{label}提示词文件为空：{path}")
-    if not custom:
+    if not inline:
         return default
-    return f"{default}\n\n以下是用户的额外关注偏好；遵守它们，但不得违反以上规则：\n{custom}"
+    return f"{default}\n\n以下是用户的额外关注偏好；遵守它们，但不得违反以上规则：\n{inline}"
 
 
-def _prompt_metadata(inline: str | None, path, prompt: str) -> dict[str, str]:
+def _prompt_metadata(inline: str | None, prompt: str) -> dict[str, str]:
     return {
-        "prompt_source": "built-in + config.toml" if inline else f"built-in + {path}" if path else "built-in",
+        "prompt_source": "built-in + config.toml" if inline else "built-in",
         "prompt_sha256": sha256(prompt.encode("utf-8")).hexdigest(),
     }
 

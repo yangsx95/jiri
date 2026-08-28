@@ -81,7 +81,7 @@ def test_show_daily_analyses_reads_saved_result_without_calling_ai(tmp_path: Pat
     assert "完成：第一天" in output
 
 
-def test_daily_analysis_validates_json_response(monkeypatch, tmp_path: Path) -> None:
+def test_daily_analysis_validates_json_response(monkeypatch) -> None:
     response = type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps({
         "summary": "完成第一章", "completed_items": ["第一章"], "planned_items": ["整理笔记"], "blockers": [], "highlights": ["有明确计划"],
         "improvements": [{"priority": 1, "issue": "缺少产出细节", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "action": "说明笔记数量"}],
@@ -96,15 +96,12 @@ def test_daily_analysis_validates_json_response(monkeypatch, tmp_path: Path) -> 
     client = type("Client", (), {"chat": type("Chat", (), {"completions": type("Completions", (), {"create": create})()})()})()
     monkeypatch.setattr(analyzer, "_client", lambda config: client)
 
-    prompt_file = tmp_path / "daily.txt"
-    prompt_file.write_text("这个文件提示词不应被使用。", encoding="utf-8")
     result = analyzer.analyze_daily_record(
         _record(),
         AnalysisConfig(
             enabled=True,
             model="test-model",
             daily_prompt="这是 TOML 内联的日分析提示词，要求更加关注学习方法。",
-            daily_prompt_file=prompt_file,
         ),
     )
     assert result["status"] == "completed"

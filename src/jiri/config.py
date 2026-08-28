@@ -41,8 +41,6 @@ class AnalysisConfig:
     timeout_seconds: float = 60.0
     daily_prompt: str | None = None
     review_prompt: str | None = None
-    daily_prompt_file: Path | None = None
-    review_prompt_file: Path | None = None
 
 
 @dataclass
@@ -94,8 +92,6 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
             timeout_seconds=float(analysis.get("timeout_seconds", 60)),
             daily_prompt=_optional_text(analysis.get("daily_prompt")),
             review_prompt=_optional_text(analysis.get("review_prompt")),
-            daily_prompt_file=_optional_path(analysis.get("daily_prompt_file"), path.parent),
-            review_prompt_file=_optional_path(analysis.get("review_prompt_file"), path.parent),
         ),
     )
 
@@ -130,18 +126,7 @@ api_key_env = "JIRI_ANALYSIS_API_KEY"
 timeout_seconds = 60
 daily_prompt = """重点关注目标清晰度、具体产出、阻碍根因和下一步行动。"""
 review_prompt = """重点识别持续进步、重复出现的阻碍，以及下一周期最重要的行动。"""
-# daily_prompt_file = "~/.config/jiri/prompts/daily-review.txt"
-# review_prompt_file = "~/.config/jiri/prompts/period-review.txt"
 '''
-
-
-def _optional_path(value: Any, config_directory: Path) -> Path | None:
-    """解析可选的提示词文件路径；相对路径相对配置文件。"""
-
-    if not value:
-        return None
-    result = Path(str(value)).expanduser()
-    return result if result.is_absolute() else config_directory / result
 
 
 def _optional_text(value: Any) -> str | None:
