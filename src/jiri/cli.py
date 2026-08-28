@@ -17,7 +17,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 
 from .config import DEFAULT_CONFIG_PATH, default_config_text, load_config
 from .setup import download_model, install_analysis_dependencies, install_transcription_backend
-from .service import available_analysis_dates, analyze_all, import_videos, review_period, show_daily_analyses, status, transcribe_all
+from .service import available_analysis_dates, analyze_all, import_videos, render_daily_analyses, review_period, show_daily_analyses, status, transcribe_all
 
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
 DEFAULT_INBOX = Path.home() / "Movies" / "VlogInbox"
@@ -198,7 +198,7 @@ def browse(
         while True:
             console.clear()
             console.print(f"[bold]日课分析浏览 {index + 1}/{len(dates)}[/bold]")
-            show_daily_analyses(settings, dates[index])
+            console.print(render_daily_analyses(settings, dates[index]), markup=False)
             console.print("\n[dim]p 前一天   n 后一天   q 退出[/dim]")
             key = sys.stdin.read(1).lower()
             if key == "q":

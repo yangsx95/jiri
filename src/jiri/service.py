@@ -348,6 +348,19 @@ def review_period(config: Config, date_from: date | None = None, date_to: date |
 def show_daily_analyses(config: Config, target_date: date) -> int:
     """只读打印某一天已保存的单条分析，不触发 AI 请求。"""
 
+    rendered, count = _render_daily_analyses(config, target_date)
+    print(rendered)
+    return count
+
+
+def render_daily_analyses(config: Config, target_date: date) -> str:
+    """返回某天的纯文本结果，供全屏终端使用统一渲染器显示。"""
+
+    rendered, _ = _render_daily_analyses(config, target_date)
+    return rendered
+
+
+def _render_daily_analyses(config: Config, target_date: date) -> tuple[str, int]:
     matches: list[tuple[Path, dict[str, Any]]] = []
     for metadata_path in sorted(config.archive.rglob("*.json")):
         if not _is_video_metadata(metadata_path):
@@ -357,11 +370,10 @@ def show_daily_analyses(config: Config, target_date: date) -> int:
             matches.append((metadata_path, record))
     if not matches:
         raise RuntimeError(f"{target_date.isoformat()} 没有已完成的分析；请先运行 jiri analyze --from {target_date.isoformat()} --to {target_date.isoformat()}")
-    print(f"{target_date.isoformat()} 的分析结果（{len(matches)} 条）")
+    lines = [f"{target_date.isoformat()} 的分析结果（{len(matches)} 条）"]
     for current, (metadata_path, record) in enumerate(matches, start=1):
-        print(f"\n[{current}/{len(matches)}] {metadata_path.name}")
-        _print_daily_analysis(record["analysis"])
-    return len(matches)
+        lines.extend(("", f"[{current}/{len(matches)}] {metadata_path.name}", *_daily_analysis_lines(record["analysis"])))
+    return "\n".join(lines), len(matches)
 
 
 def available_analysis_dates(config: Config, date_from: date | None = None, date_to: date | None = None) -> list[date]:
@@ -404,13 +416,21 @@ def _in_date_range(record: dict[str, Any], date_from: date | None, date_to: date
 def _print_daily_analysis(analysis: dict[str, Any]) -> None:
     """在 CLI 中展示足够行动导向的摘要，完整结果仍写入 JSON。"""
 
-    print(f"  完成：{analysis.get('summary', '无摘要')}")
-    _print_list("亮点", analysis.get("highlights", []))
+    print("\n".join(_daily_analysis_lines(analysis)))
+
+
+def _daily_analysis_lines(analysis: dict[str, Any]) -> list[str]:
+    """生成统一的纯文本日分析布局，避免全屏模式混用 print 与 Rich。"""
+
+    lines = [f"  完成：{analysis.get('summary', '无摘要')}"]
+    highlights = analysis.get("highlights", [])
+    if highlights:
+        lines.append(f"  亮点：{'；'.join(str(item) for item in highlights)}")
     assessments = analysis.get("dimension_assessments", [])
     if assessments:
-        print("  维度评估：")
+        lines.append("  维度评估：")
         for item in assessments:
-            print(f"    {item.get('label', item.get('id', '未命名维度'))}：{item.get('assessment', '信息不足')}")
+            lines.append(f"    {item.get('label', item.get('id', '未命名维度'))}：{item.get('assessment', '信息不足')}")
             evidence = item.get("evidence", {})
             timestamp = evidence.get("timestamp_seconds")
             quote = evidence.get("quote")
@@ -420,14 +440,14 @@ def _print_daily_analysis(analysis: dict[str, Any]) -> None:
                     parts.append(_format_timestamp(float(timestamp)))
                 if quote:
                     parts.append(f"“{quote}”")
-                print(f"       依据：{' — '.join(parts)}")
+                lines.append(f"       依据：{' — '.join(parts)}")
             if item.get("next_action"):
-                print(f"       下一步：{item['next_action']}")
+                lines.append(f"       下一步：{item['next_action']}")
     improvements = analysis.get("improvements", [])
     if improvements:
-        print("  可改进之处：")
+        lines.append("  可改进之处：")
         for item in improvements:
-            print(f"    {item.get('priority', '-')}. {item.get('issue', '未说明问题')}")
+            lines.append(f"    {item.get('priority', '-')}. {item.get('issue', '未说明问题')}")
             evidence = item.get("evidence", {})
             timestamp = evidence.get("timestamp_seconds")
             quote = evidence.get("quote")
@@ -437,9 +457,12 @@ def _print_daily_analysis(analysis: dict[str, Any]) -> None:
                     parts.append(_format_timestamp(float(timestamp)))
                 if quote:
                     parts.append(f"“{quote}”")
-                print(f"       依据：{' — '.join(parts)}")
-            print(f"       下一步：{item.get('action', '未提供')}")
-    _print_list("明日重点", analysis.get("tomorrow_focus", []))
+                lines.append(f"       依据：{' — '.join(parts)}")
+            lines.append(f"       下一步：{item.get('action', '未提供')}")
+    tomorrow_focus = analysis.get("tomorrow_focus", [])
+    if tomorrow_focus:
+        lines.append(f"  明日重点：{'；'.join(str(item) for item in tomorrow_focus)}")
+    return lines
 
 
 def _print_list(label: str, items: list[Any]) -> None:
