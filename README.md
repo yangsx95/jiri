@@ -31,6 +31,8 @@ jiri setup --transcription --backend mlx
 jiri setup --analysis
 ```
 
+如果配置文件不存在，这条命令会自动创建一份可编辑的样例配置（包含默认日分析和周期回顾提示词）。
+
 在 `~/.config/jiri/config.toml` 配置 OpenAI-compatible API，并将密钥放入环境变量：
 
 ```toml

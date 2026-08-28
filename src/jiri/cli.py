@@ -16,12 +16,14 @@ from .setup import download_model, install_analysis_dependencies, install_transc
 from .service import analyze_all, import_videos, review_period, show_daily_analyses, status, transcribe_all
 
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
+DEFAULT_INBOX = Path.home() / "Movies" / "VlogInbox"
+DEFAULT_ARCHIVE = Path.home() / "Movies" / "VlogArchive"
 
 
 @app.command()
 def init(
-    inbox: Path = typer.Option(Path.home() / "Movies" / "VlogInbox", help="外部待整理目录。"),
-    archive: Path = typer.Option(Path.home() / "Movies" / "VlogArchive", help="独立归档目录。"),
+    inbox: Path = typer.Option(DEFAULT_INBOX, help="外部待整理目录。"),
+    archive: Path = typer.Option(DEFAULT_ARCHIVE, help="独立归档目录。"),
     config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
 ) -> None:
     """创建配置文件和归档目录，不在项目目录创建 inbox。"""
@@ -49,6 +51,8 @@ def setup(
     if not transcription and not analysis:
         raise typer.BadParameter("请指定 --transcription 或 --analysis")
 
+    _create_sample_config_if_missing(config)
+
     if analysis:
         typer.echo("正在安装 AI 分析依赖...")
         try:
@@ -73,6 +77,17 @@ def setup(
         typer.echo(f"转写环境准备失败：{error}", err=True)
         raise typer.Exit(code=1) from error
     typer.echo(f"转写环境准备完成，模型已缓存：{model}")
+
+
+def _create_sample_config_if_missing(config: Path) -> None:
+    """让首次 setup 也能获得可直接编辑的样例配置。"""
+
+    if config.exists():
+        return
+    config.parent.mkdir(parents=True, exist_ok=True)
+    DEFAULT_ARCHIVE.mkdir(parents=True, exist_ok=True)
+    config.write_text(default_config_text(DEFAULT_INBOX, DEFAULT_ARCHIVE), encoding="utf-8")
+    typer.echo(f"未找到配置，已创建样例配置：{config}")
 
 
 @app.command(name="import")

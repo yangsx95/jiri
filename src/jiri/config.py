@@ -12,6 +12,11 @@ from typing import Any
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "jiri" / "config.toml"
 DEFAULT_EXTENSIONS = (".mp4", ".mov", ".m4v")
+DEFAULT_DAILY_PROMPT = """你是日课视频复盘教练。仅依据输入的转写文本和元数据分析，不得猜测未提及的事实。
+区分计划、行动、结果、阻碍和反思。改进建议最多三条，按影响力排序；每条必须引用转写原话或时间戳，若无法引用则在 evidence 的两个字段填 null。
+建议必须是下一次日课中可执行的具体动作。避免人格评判、心理诊断和空泛鼓励。只返回符合给定 JSON Schema 的 JSON。"""
+DEFAULT_REVIEW_PROMPT = """你是日课长期复盘教练。仅使用输入的每日分析，不得补充未出现的事实。
+指出可观察到的进步和重复模式，并给出最多三项下一周期可执行的重点。避免人格评判、心理诊断和空泛鼓励。只返回符合给定 JSON Schema 的 JSON。"""
 
 
 @dataclass
@@ -123,8 +128,8 @@ enabled = false
 # model = "your-model"
 api_key_env = "JIRI_ANALYSIS_API_KEY"
 timeout_seconds = 60
-# daily_prompt = """在此填写自定义日分析提示词。"""
-# review_prompt = """在此填写自定义周期回顾提示词。"""
+daily_prompt = """{DEFAULT_DAILY_PROMPT}"""
+review_prompt = """{DEFAULT_REVIEW_PROMPT}"""
 # daily_prompt_file = "~/.config/jiri/prompts/daily-review.txt"
 # review_prompt_file = "~/.config/jiri/prompts/period-review.txt"
 '''

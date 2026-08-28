@@ -1,4 +1,5 @@
 import json
+import tomllib
 from datetime import date
 from pathlib import Path
 
@@ -8,6 +9,7 @@ pytest.importorskip("pydantic")
 pytest.importorskip("tenacity")
 
 from jiri import analyzer
+from jiri import cli
 from jiri.config import AnalysisConfig, Config, default_config_text
 from jiri.service import analyze_all, review_period, show_daily_analyses, status
 
@@ -115,3 +117,18 @@ def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
     text = default_config_text(tmp_path / "inbox", tmp_path / "archive")
     assert "[analysis]" in text
     assert 'api_key_env = "JIRI_ANALYSIS_API_KEY"' in text
+    parsed = tomllib.loads(text)
+    assert "日课视频复盘教练" in parsed["analysis"]["daily_prompt"]
+    assert "日课长期复盘教练" in parsed["analysis"]["review_prompt"]
+
+
+def test_setup_creates_sample_config_when_missing(tmp_path: Path, monkeypatch) -> None:
+    sample_config = tmp_path / "config" / "jiri.toml"
+    monkeypatch.setattr(cli, "DEFAULT_INBOX", tmp_path / "inbox")
+    monkeypatch.setattr(cli, "DEFAULT_ARCHIVE", tmp_path / "archive")
+
+    cli._create_sample_config_if_missing(sample_config)
+
+    parsed = tomllib.loads(sample_config.read_text(encoding="utf-8"))
+    assert parsed["paths"]["archive"] == str(tmp_path / "archive")
+    assert "日课视频复盘教练" in parsed["analysis"]["daily_prompt"]
