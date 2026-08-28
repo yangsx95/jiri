@@ -345,6 +345,25 @@ def review_period(config: Config, date_from: date | None = None, date_to: date |
     return output_path
 
 
+def show_daily_analyses(config: Config, target_date: date) -> int:
+    """只读打印某一天已保存的单条分析，不触发 AI 请求。"""
+
+    matches: list[tuple[Path, dict[str, Any]]] = []
+    for metadata_path in sorted(config.archive.rglob("*.json")):
+        if not _is_video_metadata(metadata_path):
+            continue
+        record = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if _in_date_range(record, target_date, target_date) and record.get("analysis", {}).get("status") == "completed":
+            matches.append((metadata_path, record))
+    if not matches:
+        raise RuntimeError(f"{target_date.isoformat()} 没有已完成的分析；请先运行 jiri analyze --from {target_date.isoformat()} --to {target_date.isoformat()}")
+    print(f"{target_date.isoformat()} 的分析结果（{len(matches)} 条）")
+    for current, (metadata_path, record) in enumerate(matches, start=1):
+        print(f"\n[{current}/{len(matches)}] {metadata_path.name}")
+        _print_daily_analysis(record["analysis"])
+    return len(matches)
+
+
 def _is_video_metadata(path: Path) -> bool:
     """排除周报、导出等非视频旁车 JSON。"""
 

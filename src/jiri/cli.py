@@ -13,7 +13,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 
 from .config import DEFAULT_CONFIG_PATH, default_config_text, load_config
 from .setup import download_model, install_analysis_dependencies, install_transcription_backend
-from .service import analyze_all, import_videos, review_period, status, transcribe_all
+from .service import analyze_all, import_videos, review_period, show_daily_analyses, status, transcribe_all
 
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
 
@@ -141,6 +141,20 @@ def review(
         typer.echo(f"回顾无法启动：{error}", err=True)
         raise typer.Exit(code=1) from error
     typer.echo(f"已生成回顾：{output}")
+
+
+@app.command()
+def show(
+    target_date: str = typer.Option(..., "--date", help="要查看的日期（YYYY-MM-DD）。"),
+    config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
+) -> None:
+    """只读查看某一天已保存的 AI 分析，不重新请求 AI。"""
+
+    try:
+        show_daily_analyses(load_config(config), _parse_date(target_date))
+    except RuntimeError as error:
+        typer.echo(f"无法查看分析：{error}", err=True)
+        raise typer.Exit(code=1) from error
 
 
 def _transcription_worker(settings, force: bool, profile: str | None, backend: str | None, events) -> None:

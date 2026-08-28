@@ -9,7 +9,7 @@ pytest.importorskip("tenacity")
 
 from jiri import analyzer
 from jiri.config import AnalysisConfig, Config, default_config_text
-from jiri.service import analyze_all, review_period, status
+from jiri.service import analyze_all, review_period, show_daily_analyses, status
 
 
 def _record(analysis: dict | None = None) -> dict:
@@ -67,6 +67,16 @@ def test_review_writes_hidden_summary_that_status_ignores(tmp_path: Path, monkey
     output = review_period(_config(tmp_path), date(2026, 8, 27), date(2026, 8, 27))
     assert json.loads(output.read_text(encoding="utf-8"))["overview"] == "保持推进"
     assert status(_config(tmp_path))["videos"] == 1
+
+
+def test_show_daily_analyses_reads_saved_result_without_calling_ai(tmp_path: Path, capsys) -> None:
+    metadata = tmp_path / "2026-08-27-001.json"
+    metadata.write_text(json.dumps(_record({"status": "completed", "summary": "第一天", "highlights": ["持续记录"], "improvements": [], "tomorrow_focus": []})), encoding="utf-8")
+
+    assert show_daily_analyses(_config(tmp_path), date(2026, 8, 27)) == 1
+    output = capsys.readouterr().out
+    assert "2026-08-27 的分析结果" in output
+    assert "完成：第一天" in output
 
 
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:

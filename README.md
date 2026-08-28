@@ -44,6 +44,7 @@ api_key_env = "JIRI_ANALYSIS_API_KEY"
 ```bash
 export JIRI_ANALYSIS_API_KEY="..."
 jiri analyze
+jiri show --date 2026-08-27        # 只读查看当天已保存的分析，不请求 AI
 jiri analyze --from 2026-08-01 --to 2026-08-31
 jiri review
 jiri review --from 2026-08-01 --to 2026-08-31
