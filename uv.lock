@@ -308,16 +308,14 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "mlx-whisper", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
+    { name = "openai" },
+    { name = "pydantic" },
     { name = "rich" },
+    { name = "tenacity" },
     { name = "typer" },
 ]
 
 [package.optional-dependencies]
-analysis = [
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "tenacity" },
-]
 dev = [
     { name = "pytest" },
 ]
@@ -329,14 +327,14 @@ transcription = [
 requires-dist = [
     { name = "faster-whisper", marker = "extra == 'transcription'", specifier = ">=1.1,<2" },
     { name = "mlx-whisper", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", specifier = ">=0.4.3,<0.5" },
-    { name = "openai", marker = "extra == 'analysis'", specifier = ">=1,<2" },
-    { name = "pydantic", marker = "extra == 'analysis'", specifier = ">=2,<3" },
+    { name = "openai", specifier = ">=1,<2" },
+    { name = "pydantic", specifier = ">=2,<3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<9" },
     { name = "rich", specifier = ">=13,<15" },
-    { name = "tenacity", marker = "extra == 'analysis'", specifier = ">=9,<10" },
+    { name = "tenacity", specifier = ">=9,<10" },
     { name = "typer", specifier = ">=0.12,<1" },
 ]
-provides-extras = ["transcription", "analysis", "dev"]
+provides-extras = ["transcription", "dev"]
 
 [[package]]
 name = "jiter"

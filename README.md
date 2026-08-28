@@ -25,7 +25,7 @@ jiri setup --transcription --backend mlx
 
 ## AI 日课分析
 
-分析只会发送已生成的转写文本和视频元数据，不会上传原始视频。先安装可选依赖：
+分析只会发送已生成的转写文本和视频元数据，不会上传原始视频。分析依赖会随 `jiri` 一同安装；已安装旧版本时，可执行下列命令补齐依赖：
 
 ```bash
 jiri setup --analysis
