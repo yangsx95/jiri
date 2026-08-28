@@ -9,6 +9,7 @@ from shutil import which
 
 TRANSCRIPTION_PACKAGE = "faster-whisper>=1.1,<2"
 MLX_TRANSCRIPTION_PACKAGE = "mlx-whisper>=0.4.3,<0.5"
+ANALYSIS_PACKAGES = ("openai>=1,<2", "pydantic>=2,<3", "tenacity>=9,<10")
 MODEL_REPOSITORIES = {
     "small": "Systran/faster-whisper-small",
     "medium": "Systran/faster-whisper-medium",
@@ -33,6 +34,17 @@ def install_transcription_backend(backend: str = "faster-whisper") -> None:
         command = [uv, "pip", "install", "--python", sys.executable, package]
     else:
         command = [sys.executable, "-m", "pip", "install", package]
+    subprocess.run(command, check=True)
+
+
+def install_analysis_dependencies() -> None:
+    """把可选云端分析依赖安装到当前 jiri 的 Python 环境。"""
+
+    uv = which("uv")
+    if uv:
+        command = [uv, "pip", "install", "--python", sys.executable, *ANALYSIS_PACKAGES]
+    else:
+        command = [sys.executable, "-m", "pip", "install", *ANALYSIS_PACKAGES]
     subprocess.run(command, check=True)
 
 

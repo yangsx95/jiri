@@ -23,6 +23,34 @@ jiri setup --transcription --backend mlx
 
 该命令会安装本地转写后端并下载 Whisper 模型。之后直接运行 `jiri transcribe` 即可。
 
+## AI 日课分析
+
+分析只会发送已生成的转写文本和视频元数据，不会上传原始视频。先安装可选依赖：
+
+```bash
+jiri setup --analysis
+```
+
+在 `~/.config/jiri/config.toml` 配置 OpenAI-compatible API，并将密钥放入环境变量：
+
+```toml
+[analysis]
+enabled = true
+api_base = "https://your-openai-compatible-endpoint/v1" # 使用 OpenAI 默认地址时可留空
+model = "your-model"
+api_key_env = "JIRI_ANALYSIS_API_KEY"
+```
+
+```bash
+export JIRI_ANALYSIS_API_KEY="..."
+jiri analyze
+jiri analyze --from 2026-08-01 --to 2026-08-31
+jiri review
+jiri review --from 2026-08-01 --to 2026-08-31
+```
+
+单日分析会写回视频的同名 JSON；周/月回顾保存在归档目录的 `.jiri/reviews/` 中。每条改进建议都包含转写证据，或明确标记为信息不足。
+
 ## 规划
 
 详细技术方案见 [docs/technical-plan.md](docs/technical-plan.md)。

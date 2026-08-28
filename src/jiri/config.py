@@ -26,6 +26,17 @@ class TranscriptionConfig:
 
 
 @dataclass
+class AnalysisConfig:
+    """云端文本分析的配置；密钥始终由环境变量提供。"""
+
+    enabled: bool = False
+    api_base: str = ""
+    model: str = ""
+    api_key_env: str = "JIRI_ANALYSIS_API_KEY"
+    timeout_seconds: float = 60.0
+
+
+@dataclass
 class Config:
     inbox: Path
     archive: Path
@@ -34,6 +45,7 @@ class Config:
     duplicate_policy: str = "skip_by_hash"
     missing_capture_time: str = "fallback_then_review"
     transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -48,6 +60,7 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
     paths = raw.get("paths", {})
     import_config = raw.get("import", {})
     transcription = raw.get("transcription", {})
+    analysis = raw.get("analysis", {})
     return Config(
         inbox=Path(paths["inbox"]).expanduser(),
         archive=Path(paths["archive"]).expanduser(),
@@ -64,10 +77,42 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
             device=transcription.get("device", "auto"),
             compute_type=transcription.get("compute_type", "auto"),
         ),
+        analysis=AnalysisConfig(
+            enabled=analysis.get("enabled", False),
+            api_base=analysis.get("api_base", ""),
+            model=analysis.get("model", ""),
+            api_key_env=analysis.get("api_key_env", "JIRI_ANALYSIS_API_KEY"),
+            timeout_seconds=float(analysis.get("timeout_seconds", 60)),
+        ),
     )
 
 
 def default_config_text(inbox: Path, archive: Path) -> str:
     """生成适合首次使用的配置示例。"""
 
-    return f'''[paths]\ninbox = "{inbox}"\narchive = "{archive}"\n\n[import]\nmode = "move"\nvideo_extensions = [".mp4", ".mov", ".m4v"]\nduplicate_policy = "skip_by_hash"\nmissing_capture_time = "fallback_then_review"\n\n[transcription]\nenabled = false\nbackend = "mlx"\nprofile = "accurate"\nmodel = "large-v3"\nlanguage = "zh"\ndevice = "auto"\ncompute_type = "auto"\n'''
+    return f'''[paths]
+inbox = "{inbox}"
+archive = "{archive}"
+
+[import]
+mode = "move"
+video_extensions = [".mp4", ".mov", ".m4v"]
+duplicate_policy = "skip_by_hash"
+missing_capture_time = "fallback_then_review"
+
+[transcription]
+enabled = false
+backend = "mlx"
+profile = "accurate"
+model = "large-v3"
+language = "zh"
+device = "auto"
+compute_type = "auto"
+
+[analysis]
+enabled = false
+# api_base = "https://your-openai-compatible-endpoint/v1"
+# model = "your-model"
+api_key_env = "JIRI_ANALYSIS_API_KEY"
+timeout_seconds = 60
+'''

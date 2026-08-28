@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+from datetime import date, datetime
 from queue import Empty
 from pathlib import Path
 
@@ -11,8 +12,8 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
 from .config import DEFAULT_CONFIG_PATH, default_config_text, load_config
-from .setup import download_model, install_transcription_backend
-from .service import import_videos, status, transcribe_all
+from .setup import download_model, install_analysis_dependencies, install_transcription_backend
+from .service import analyze_all, import_videos, review_period, status, transcribe_all
 
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
 
@@ -38,14 +39,27 @@ def init(
 @app.command()
 def setup(
     transcription: bool = typer.Option(False, "--transcription", help="安装本地转写后端并下载模型。"),
+    analysis: bool = typer.Option(False, "--analysis", help="安装云端文本分析依赖。"),
     model: str = typer.Option("large-v3", help="要下载的 Whisper 模型。"),
     backend: str = typer.Option("mlx", help="转写后端：mlx 或 faster-whisper。"),
     config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
 ) -> None:
     """准备 jiri 的本地转写环境。"""
 
+    if not transcription and not analysis:
+        raise typer.BadParameter("请指定 --transcription 或 --analysis")
+
+    if analysis:
+        typer.echo("正在安装 AI 分析依赖...")
+        try:
+            install_analysis_dependencies()
+        except Exception as error:
+            typer.echo(f"分析环境准备失败：{error}", err=True)
+            raise typer.Exit(code=1) from error
+        typer.echo("AI 分析依赖安装完成")
+
     if not transcription:
-        raise typer.BadParameter("请指定 --transcription")
+        return
 
     typer.echo("正在安装本地转写后端...")
     try:
@@ -94,6 +108,31 @@ def retry(config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路
 
     counts = _run_transcription(load_config(config), force=False, profile=None, backend=None)
     typer.echo(f"发现 {counts['found']} 个，完成 {counts['completed']} 个，跳过 {counts['skipped']} 个，失败 {counts['failed']} 个")
+
+
+@app.command()
+def analyze(
+    force: bool = typer.Option(False, "--force", help="重新分析已有完成结果的视频。"),
+    date_from: str | None = typer.Option(None, "--from", help="仅分析此日期及之后的视频（YYYY-MM-DD）。"),
+    date_to: str | None = typer.Option(None, "--to", help="仅分析此日期及之前的视频（YYYY-MM-DD）。"),
+    config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
+) -> None:
+    """对已转写视频生成带证据的日课复盘。"""
+
+    counts = analyze_all(load_config(config), force=force, date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    typer.echo(f"发现 {counts['found']} 个，完成 {counts['completed']} 个，跳过 {counts['skipped']} 个，失败 {counts['failed']} 个")
+
+
+@app.command()
+def review(
+    date_from: str | None = typer.Option(None, "--from", help="回顾起始日期，默认最近 7 天。"),
+    date_to: str | None = typer.Option(None, "--to", help="回顾结束日期，默认今天。"),
+    config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
+) -> None:
+    """从已有日分析生成周/月趋势回顾。"""
+
+    output = review_period(load_config(config), date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    typer.echo(f"已生成回顾：{output}")
 
 
 def _transcription_worker(settings, force: bool, profile: str | None, backend: str | None, events) -> None:
@@ -201,13 +240,25 @@ def format_seconds(value: float) -> str:
     return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
 
 
+def _parse_date(value: str | None) -> date | None:
+    """把 CLI 日期参数限定为稳定的 YYYY-MM-DD 格式。"""
+
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as error:
+        raise typer.BadParameter("日期必须是 YYYY-MM-DD，例如 2026-08-27") from error
+
+
 @app.command(name="status")
 def status_command(config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。")) -> None:
     """显示归档库处理状态。"""
 
     values = status(load_config(config))
     typer.echo(
-        f"视频 {values['videos']} 个，转写完成 {values['completed']} 个，待处理 {values['pending']} 个，失败 {values['failed']} 个"
+        f"视频 {values['videos']} 个，转写完成 {values['completed']} 个，待处理 {values['pending']} 个，失败 {values['failed']} 个；"
+        f"分析完成 {values['analyzed']} 个，待分析 {values['analysis_pending']} 个，失败 {values['analysis_failed']} 个"
     )
 
 

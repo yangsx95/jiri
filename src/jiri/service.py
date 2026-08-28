@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
@@ -82,7 +83,7 @@ def transcribe_all(
     """扫描归档 JSON，补齐待转写或失败的视频。"""
 
     counts = {"found": 0, "completed": 0, "failed": 0, "skipped": 0}
-    metadata_paths = sorted(config.archive.rglob("*.json"))
+    metadata_paths = [path for path in sorted(config.archive.rglob("*.json")) if _is_video_metadata(path)]
     total = len(metadata_paths)
     for index, metadata_path in enumerate(metadata_paths, start=1):
         try:
@@ -246,18 +247,102 @@ def _notify(
 def status(config: Config) -> dict[str, int]:
     """统计归档库中 JSON 的处理状态。"""
 
-    result = {"videos": 0, "completed": 0, "pending": 0, "failed": 0}
+    result = {"videos": 0, "completed": 0, "pending": 0, "failed": 0, "analyzed": 0, "analysis_pending": 0, "analysis_failed": 0}
     for metadata_path in config.archive.rglob("*.json"):
-        result["videos"] += 1
         try:
             value = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if not value.get("archived_filename"):
+                continue
+            result["videos"] += 1
             state = value.get("transcription", {}).get("status", "pending")
         except (OSError, json.JSONDecodeError):
-            state = "failed"
+            result["videos"] += 1
+            result["failed"] += 1
+            continue
         if state == "completed":
             result["completed"] += 1
         elif state == "failed":
             result["failed"] += 1
         else:
             result["pending"] += 1
+        analysis_state = value.get("analysis", {}).get("status", "pending")
+        if analysis_state == "completed":
+            result["analyzed"] += 1
+        elif analysis_state == "failed":
+            result["analysis_failed"] += 1
+        else:
+            result["analysis_pending"] += 1
     return result
+
+
+def analyze_all(config: Config, force: bool = False, date_from: date | None = None, date_to: date | None = None) -> dict[str, int]:
+    """为时间范围内已转写的视频补齐单日 AI 复盘。"""
+
+    from .analyzer import analyze_daily_record
+
+    counts = {"found": 0, "completed": 0, "failed": 0, "skipped": 0}
+    for metadata_path in sorted(config.archive.rglob("*.json")):
+        if not _is_video_metadata(metadata_path):
+            continue
+        record = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if not _in_date_range(record, date_from, date_to):
+            continue
+        if record.get("transcription", {}).get("status") != "completed":
+            counts["skipped"] += 1
+            continue
+        counts["found"] += 1
+        if not force and record.get("analysis", {}).get("status") == "completed":
+            counts["skipped"] += 1
+            continue
+        try:
+            record["analysis"] = analyze_daily_record(record, config.analysis)
+            write_json_atomic(metadata_path, record)
+            counts["completed"] += 1
+            print(f"已分析：{metadata_path.name}")
+        except Exception as error:
+            record["analysis"] = {"status": "failed", "error": str(error)}
+            write_json_atomic(metadata_path, record)
+            counts["failed"] += 1
+            print(f"分析失败：{metadata_path.name}：{error}")
+    return counts
+
+
+def review_period(config: Config, date_from: date | None = None, date_to: date | None = None) -> Path:
+    """汇总已有日分析并写入归档库的 .jiri/reviews 中。"""
+
+    from .analyzer import analyze_period
+
+    end = date_to or date.today()
+    start = date_from or end - timedelta(days=6)
+    records: list[dict[str, Any]] = []
+    for metadata_path in sorted(config.archive.rglob("*.json")):
+        if not _is_video_metadata(metadata_path):
+            continue
+        record = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if _in_date_range(record, start, end) and record.get("analysis", {}).get("status") == "completed":
+            records.append(record)
+    if not records:
+        raise RuntimeError("该时间范围内没有已完成的日分析，请先运行 jiri analyze")
+    review = analyze_period(records, config.analysis, start.isoformat(), end.isoformat())
+    output_path = config.archive / ".jiri" / "reviews" / f"{start.isoformat()}_to_{end.isoformat()}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(output_path, review)
+    return output_path
+
+
+def _is_video_metadata(path: Path) -> bool:
+    """排除周报、导出等非视频旁车 JSON。"""
+
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(value.get("archived_filename"))
+
+
+def _in_date_range(record: dict[str, Any], date_from: date | None, date_to: date | None) -> bool:
+    try:
+        capture_date = datetime.fromisoformat(record["capture_time"]).date()
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (date_from is None or capture_date >= date_from) and (date_to is None or capture_date <= date_to)
