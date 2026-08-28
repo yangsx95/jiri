@@ -34,6 +34,8 @@ class AnalysisConfig:
     model: str = ""
     api_key_env: str = "JIRI_ANALYSIS_API_KEY"
     timeout_seconds: float = 60.0
+    daily_prompt: str | None = None
+    review_prompt: str | None = None
     daily_prompt_file: Path | None = None
     review_prompt_file: Path | None = None
 
@@ -85,6 +87,8 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
             model=analysis.get("model", ""),
             api_key_env=analysis.get("api_key_env", "JIRI_ANALYSIS_API_KEY"),
             timeout_seconds=float(analysis.get("timeout_seconds", 60)),
+            daily_prompt=_optional_text(analysis.get("daily_prompt")),
+            review_prompt=_optional_text(analysis.get("review_prompt")),
             daily_prompt_file=_optional_path(analysis.get("daily_prompt_file"), path.parent),
             review_prompt_file=_optional_path(analysis.get("review_prompt_file"), path.parent),
         ),
@@ -119,6 +123,8 @@ enabled = false
 # model = "your-model"
 api_key_env = "JIRI_ANALYSIS_API_KEY"
 timeout_seconds = 60
+# daily_prompt = """在此填写自定义日分析提示词。"""
+# review_prompt = """在此填写自定义周期回顾提示词。"""
 # daily_prompt_file = "~/.config/jiri/prompts/daily-review.txt"
 # review_prompt_file = "~/.config/jiri/prompts/period-review.txt"
 '''
@@ -131,3 +137,8 @@ def _optional_path(value: Any, config_directory: Path) -> Path | None:
         return None
     result = Path(str(value)).expanduser()
     return result if result.is_absolute() else config_directory / result
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None

@@ -95,12 +95,20 @@ def test_daily_analysis_validates_json_response(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr(analyzer, "_client", lambda config: client)
 
     prompt_file = tmp_path / "daily.txt"
-    prompt_file.write_text("这是用户定制的日分析提示词，要求更加关注学习方法。", encoding="utf-8")
-    result = analyzer.analyze_daily_record(_record(), AnalysisConfig(enabled=True, model="test-model", daily_prompt_file=prompt_file))
+    prompt_file.write_text("这个文件提示词不应被使用。", encoding="utf-8")
+    result = analyzer.analyze_daily_record(
+        _record(),
+        AnalysisConfig(
+            enabled=True,
+            model="test-model",
+            daily_prompt="这是 TOML 内联的日分析提示词，要求更加关注学习方法。",
+            daily_prompt_file=prompt_file,
+        ),
+    )
     assert result["status"] == "completed"
     assert result["improvements"][0]["evidence"]["quote"] == "完成了第一章"
-    assert result["prompt_source"] == str(prompt_file)
-    assert "用户定制的日分析提示词" in requests[0]["messages"][0]["content"]
+    assert result["prompt_source"] == "config.toml"
+    assert "TOML 内联的日分析提示词" in requests[0]["messages"][0]["content"]
 
 
 def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
