@@ -67,6 +67,23 @@ review_prompt = """
 """
 ```
 
+稳定的分析项目通过 `rubric` 配置，而不是靠自由文本提示词维持。每个维度必须有唯一 `id`、展示名称和评估指引；新分析会逐项写入 `dimension_assessments`，便于按同一口径长期比较。
+
+```toml
+[analysis.rubric]
+improvement_limit = 3
+
+[[analysis.rubric.dimensions]]
+id = "execution"
+label = "执行与产出"
+guidance = "识别具体行动、完成证据与未完成事项，不把意图当作结果。"
+
+[[analysis.rubric.dimensions]]
+id = "reflection"
+label = "学习与反思"
+guidance = "评估复盘是否具体，是否提炼了可迁移的方法或洞见。"
+```
+
 
 ## 规划
 

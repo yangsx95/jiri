@@ -387,6 +387,23 @@ def _print_daily_analysis(analysis: dict[str, Any]) -> None:
 
     print(f"  完成：{analysis.get('summary', '无摘要')}")
     _print_list("亮点", analysis.get("highlights", []))
+    assessments = analysis.get("dimension_assessments", [])
+    if assessments:
+        print("  维度评估：")
+        for item in assessments:
+            print(f"    {item.get('label', item.get('id', '未命名维度'))}：{item.get('assessment', '信息不足')}")
+            evidence = item.get("evidence", {})
+            timestamp = evidence.get("timestamp_seconds")
+            quote = evidence.get("quote")
+            if timestamp is not None or quote:
+                parts = []
+                if timestamp is not None:
+                    parts.append(_format_timestamp(float(timestamp)))
+                if quote:
+                    parts.append(f"“{quote}”")
+                print(f"       依据：{' — '.join(parts)}")
+            if item.get("next_action"):
+                print(f"       下一步：{item['next_action']}")
     improvements = analysis.get("improvements", [])
     if improvements:
         print("  可改进之处：")

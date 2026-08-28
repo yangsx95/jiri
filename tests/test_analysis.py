@@ -82,8 +82,13 @@ def test_show_daily_analyses_reads_saved_result_without_calling_ai(tmp_path: Pat
 
 
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:
+    dimensions = [
+        {"id": item.id, "label": item.label, "assessment": "有记录", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "next_action": None}
+        for item in AnalysisConfig().dimensions
+    ]
     response = type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps({
         "summary": "完成第一章", "completed_items": ["第一章"], "planned_items": ["整理笔记"], "blockers": [], "highlights": ["有明确计划"],
+        "dimension_assessments": dimensions,
         "improvements": [{"priority": 1, "issue": "缺少产出细节", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "action": "说明笔记数量"}],
         "tomorrow_focus": ["整理笔记"], "confidence": "high"
     })})})]})

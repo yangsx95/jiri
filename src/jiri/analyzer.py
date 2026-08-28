@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .config import AnalysisConfig, DEFAULT_DAILY_PROMPT, DEFAULT_REVIEW_PROMPT
+from .config import AnalysisConfig, AnalysisDimension, DEFAULT_DAILY_PROMPT, DEFAULT_REVIEW_PROMPT
 
 
 PROMPT_VERSION = "daily-review-v1"
@@ -32,6 +32,17 @@ class Improvement(BaseModel):
     action: str
 
 
+class DimensionAssessment(BaseModel):
+    """一个配置维度的观察、证据与可执行下一步。"""
+
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    label: str
+    assessment: str
+    evidence: Evidence
+    next_action: str | None = None
+
+
 class DailyReview(BaseModel):
     """持久化到视频 JSON 的、可被程序安全读取的模型输出。"""
 
@@ -41,7 +52,8 @@ class DailyReview(BaseModel):
     planned_items: list[str]
     blockers: list[str]
     highlights: list[str]
-    improvements: list[Improvement] = Field(max_length=3)
+    dimension_assessments: list[DimensionAssessment] = Field(max_length=12)
+    improvements: list[Improvement] = Field(max_length=5)
     tomorrow_focus: list[str] = Field(max_length=3)
     confidence: Literal["high", "medium", "low"]
 
@@ -73,9 +85,14 @@ def analyze_daily_record(record: dict[str, Any], config: AnalysisConfig) -> dict
             {"start_seconds": item.get("start_seconds"), "end_seconds": item.get("end_seconds"), "text": item.get("text", "")}
             for item in segments
         ],
+        "rubric": {
+            "dimensions": [_dimension_payload(item) for item in config.dimensions],
+            "improvement_limit": config.improvement_limit,
+        },
     }
     prompt = _resolve_prompt(config.daily_prompt, DAILY_SYSTEM_PROMPT)
     result = _request_json(config, prompt, payload, DailyReview)
+    _validate_rubric_result(result, config.dimensions, config.improvement_limit)
     return {
         "status": "completed",
         "model": config.model,
@@ -111,7 +128,7 @@ def analyze_period(records: list[dict[str, Any]], config: AnalysisConfig, date_f
 
 
 def _daily_analysis_fields(analysis: dict[str, Any]) -> dict[str, Any]:
-    keys = ("summary", "completed_items", "planned_items", "blockers", "highlights", "improvements", "tomorrow_focus", "confidence")
+    keys = ("summary", "completed_items", "planned_items", "blockers", "highlights", "dimension_assessments", "improvements", "tomorrow_focus", "confidence")
     return {key: analysis.get(key) for key in keys}
 
 
@@ -151,6 +168,19 @@ def _prompt_metadata(inline: str | None, prompt: str) -> dict[str, str]:
         "prompt_source": "built-in + config.toml" if inline else "built-in",
         "prompt_sha256": sha256(prompt.encode("utf-8")).hexdigest(),
     }
+
+
+def _dimension_payload(dimension: AnalysisDimension) -> dict[str, str]:
+    return {"id": dimension.id, "label": dimension.label, "guidance": dimension.guidance}
+
+
+def _validate_rubric_result(result: DailyReview, dimensions: tuple[AnalysisDimension, ...], improvement_limit: int) -> None:
+    expected = [(item.id, item.label) for item in dimensions]
+    actual = [(item.id, item.label) for item in result.dimension_assessments]
+    if actual != expected:
+        raise RuntimeError("分析 API 返回的维度与配置不一致，请重试")
+    if len(result.improvements) > improvement_limit:
+        raise RuntimeError("分析 API 返回的改进建议超过配置上限，请重试")
 
 
 def _request_json(config: AnalysisConfig, system_prompt: str, payload: dict[str, Any], schema: type[BaseModel]) -> BaseModel:
