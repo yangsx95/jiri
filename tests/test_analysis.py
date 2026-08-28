@@ -115,11 +115,26 @@ def test_available_analysis_dates_returns_only_completed_days(tmp_path: Path) ->
 
 
 def test_browser_navigation_uses_single_keys_and_stays_in_bounds() -> None:
-    assert cli._move_browser_index(2, "p", 3) == 1
-    assert cli._move_browser_index(1, "n", 3) == 2
-    assert cli._move_browser_index(0, "p", 3) == 0
-    assert cli._move_browser_index(2, "n", 3) == 2
+    assert cli._move_browser_index(2, "left", 3) == 1
+    assert cli._move_browser_index(1, "right", 3) == 2
+    assert cli._move_browser_index(0, "left", 3) == 0
+    assert cli._move_browser_index(2, "right", 3) == 2
     assert cli._move_browser_index(1, "x", 3) == 1
+
+
+def test_browser_supports_arrow_navigation_and_advertises_it() -> None:
+    assert cli._move_browser_index(2, "left", 3) == 1
+    assert cli._move_browser_index(1, "right", 3) == 2
+    assert "←" in cli.BROWSE_HINT
+    assert "→" in cli.BROWSE_HINT
+
+
+def test_browser_scrolls_with_up_and_down_and_wraps_chinese_text() -> None:
+    assert cli._move_browser_scroll(1, "up", 3) == 0
+    assert cli._move_browser_scroll(2, "down", 3) == 3
+    assert cli._move_browser_scroll(0, "up", 3) == 0
+    assert cli._move_browser_scroll(3, "down", 3) == 3
+    assert cli._wrap_browser_content("中文测试", 4) == ["中文", "测试"]
 
 
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:

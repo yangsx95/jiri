@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import multiprocessing
+import select
 import sys
 import termios
 import tty
+import unicodedata
 from contextlib import contextmanager
 from datetime import date, datetime
 from queue import Empty
@@ -23,6 +25,7 @@ from .service import available_analysis_dates, analyze_all, import_videos, rende
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
 DEFAULT_INBOX = Path.home() / "Movies" / "VlogInbox"
 DEFAULT_ARCHIVE = Path.home() / "Movies" / "VlogArchive"
+BROWSE_HINT = "← 前一天    → 后一天    ↑ / ↓ 滚动    q 退出"
 
 
 @app.command()
@@ -183,7 +186,7 @@ def browse(
     date_to: str | None = typer.Option(None, "--to", help="浏览结束日期（YYYY-MM-DD）。"),
     config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
 ) -> None:
-    """全屏逐日查看已保存分析；p/n 立即翻页，q 退出。"""
+    """全屏逐日查看已保存分析；左右切日、上下滚动、q 退出。"""
 
     settings = load_config(config)
     dates = available_analysis_dates(settings, _parse_date(date_from), _parse_date(date_to))
@@ -195,24 +198,41 @@ def browse(
         raise typer.Exit(code=1)
     console = Console()
     index = len(dates) - 1
-    with _raw_key_mode(), console.screen(hide_cursor=True, style="on #102a43"):
+    scroll_offset = 0
+    with _raw_key_mode(), console.screen(hide_cursor=True, style="on #0d1117"):
         while True:
             console.clear()
+            panel_height = max(8, console.size.height - 2)
+            content_width = max(20, console.size.width - 8)
+            content_lines = _wrap_browser_content(render_daily_analyses(settings, dates[index]), content_width)
+            viewport_height = max(1, panel_height - 4)
+            max_scroll = max(0, len(content_lines) - viewport_height)
+            scroll_offset = min(scroll_offset, max_scroll)
+            visible_content = "\n".join(content_lines[scroll_offset:scroll_offset + viewport_height])
             console.print(
                 Panel(
-                    render_daily_analyses(settings, dates[index], compact=True),
+                    visible_content,
                     title=f"[bold cyan]日课分析浏览 {index + 1}/{len(dates)}[/bold cyan]",
+                    subtitle=f"[dim]第 {scroll_offset + 1}-{min(len(content_lines), scroll_offset + viewport_height)} / {len(content_lines)} 行[/dim]",
                     border_style="bright_cyan",
                     padding=(1, 2),
                     expand=True,
+                    height=panel_height,
                 ),
                 markup=False,
             )
-            console.print("[bold cyan]p[/bold cyan] 前一天    [bold cyan]n[/bold cyan] 后一天    [bold cyan]q[/bold cyan] 退出")
-            key = sys.stdin.read(1).lower()
+            console.print(f"[bold cyan]{BROWSE_HINT}[/bold cyan]")
+            key = _read_browser_key()
             if key == "q":
                 return
-            index = _move_browser_index(index, key, len(dates))
+            if key == "left":
+                index = _move_browser_index(index, key, len(dates))
+                scroll_offset = 0
+            elif key == "right":
+                index = _move_browser_index(index, key, len(dates))
+                scroll_offset = 0
+            else:
+                scroll_offset = _move_browser_scroll(scroll_offset, key, max_scroll)
 
 
 def _transcription_worker(settings, force: bool, profile: str | None, backend: str | None, events) -> None:
@@ -347,11 +367,56 @@ def _raw_key_mode():
 def _move_browser_index(index: int, key: str, total: int) -> int:
     """根据单个按键计算浏览器页码，并在边界停留。"""
 
-    if key in {"p", "h"}:
+    if key == "left":
         return max(0, index - 1)
-    if key in {"n", "l"}:
+    if key == "right":
         return min(total - 1, index + 1)
     return index
+
+
+def _move_browser_scroll(offset: int, key: str, maximum: int) -> int:
+    """用上下方向键在当前日期的内容视窗中逐行滚动。"""
+
+    if key == "up":
+        return max(0, offset - 1)
+    if key == "down":
+        return min(maximum, offset + 1)
+    return offset
+
+
+def _wrap_browser_content(content: str, width: int) -> list[str]:
+    """按终端显示宽度换行，正确处理中文等双宽字符。"""
+
+    lines: list[str] = []
+    for source_line in content.splitlines():
+        if not source_line:
+            lines.append("")
+            continue
+        current = ""
+        current_width = 0
+        for character in source_line:
+            character_width = 2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
+            if current and current_width + character_width > width:
+                lines.append(current)
+                current = character
+                current_width = character_width
+            else:
+                current += character
+                current_width += character_width
+        lines.append(current)
+    return lines or [""]
+
+
+def _read_browser_key() -> str:
+    """读取一个按键，并把常见方向键转换成标准方向名称。"""
+
+    key = sys.stdin.read(1).lower()
+    if key != "\x1b" or not select.select([sys.stdin], [], [], 0.05)[0]:
+        return key
+    if sys.stdin.read(1) != "[" or not select.select([sys.stdin], [], [], 0.05)[0]:
+        return key
+    arrow = sys.stdin.read(1)
+    return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(arrow, key)
 
 
 @app.command(name="status")
