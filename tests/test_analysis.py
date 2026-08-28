@@ -1,5 +1,6 @@
 import json
 import tomllib
+import asyncio
 from datetime import date
 from pathlib import Path
 
@@ -114,27 +115,30 @@ def test_available_analysis_dates_returns_only_completed_days(tmp_path: Path) ->
     assert available_analysis_dates(_config(tmp_path)) == [date(2026, 8, 27)]
 
 
-def test_browser_navigation_uses_single_keys_and_stays_in_bounds() -> None:
-    assert cli._move_browser_index(2, "left", 3) == 1
-    assert cli._move_browser_index(1, "right", 3) == 2
-    assert cli._move_browser_index(0, "left", 3) == 0
-    assert cli._move_browser_index(2, "right", 3) == 2
-    assert cli._move_browser_index(1, "x", 3) == 1
+def test_fullscreen_browser_uses_arrows_for_day_navigation_and_scrolling(tmp_path: Path) -> None:
+    """浏览器是实心全屏应用：左右换天、上下仅滚动当前正文。"""
 
+    from jiri.browser import AnalysisBrowser
 
-def test_browser_supports_arrow_navigation_and_advertises_it() -> None:
-    assert cli._move_browser_index(2, "left", 3) == 1
-    assert cli._move_browser_index(1, "right", 3) == 2
-    assert "←" in cli.BROWSE_HINT
-    assert "→" in cli.BROWSE_HINT
+    for current_day, summary in (("2026-08-27", "第一天"), ("2026-08-28", "第二天")):
+        record = _record({"status": "completed", "summary": summary, "highlights": [], "dimension_assessments": [], "improvements": [], "tomorrow_focus": []})
+        record["capture_time"] = f"{current_day}T20:00:00+08:00"
+        record["archived_filename"] = f"{current_day}-001.mp4"
+        (tmp_path / f"{current_day}.json").write_text(json.dumps(record), encoding="utf-8")
 
+    async def exercise() -> None:
+        app = AnalysisBrowser(_config(tmp_path), [date(2026, 8, 27), date(2026, 8, 28)])
+        async with app.run_test(size=(100, 24)) as pilot:
+            assert "第二天" in str(app.query_one("#analysis").render())
+            await pilot.press("left")
+            assert "第一天" in str(app.query_one("#analysis").render())
+            await pilot.press("down")
+            assert app.query_one("#content").scroll_y >= 0
+            await pilot.press("right")
+            assert "第二天" in str(app.query_one("#analysis").render())
+            assert app.query_one("#content").scroll_y == 0
 
-def test_browser_scrolls_with_up_and_down_and_wraps_chinese_text() -> None:
-    assert cli._move_browser_scroll(1, "up", 3) == 0
-    assert cli._move_browser_scroll(2, "down", 3) == 3
-    assert cli._move_browser_scroll(0, "up", 3) == 0
-    assert cli._move_browser_scroll(3, "down", 3) == 3
-    assert cli._wrap_browser_content("中文测试", 4) == ["中文", "测试"]
+    asyncio.run(exercise())
 
 
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:
