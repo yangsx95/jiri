@@ -11,7 +11,7 @@ pytest.importorskip("tenacity")
 from jiri import analyzer
 from jiri import cli
 from jiri.config import AnalysisConfig, Config, default_config_text
-from jiri.service import analyze_all, review_period, show_daily_analyses, status
+from jiri.service import available_analysis_dates, analyze_all, review_period, show_daily_analyses, status
 
 
 def _record(analysis: dict | None = None) -> dict:
@@ -79,6 +79,16 @@ def test_show_daily_analyses_reads_saved_result_without_calling_ai(tmp_path: Pat
     output = capsys.readouterr().out
     assert "2026-08-27 的分析结果" in output
     assert "完成：第一天" in output
+
+
+def test_available_analysis_dates_returns_only_completed_days(tmp_path: Path) -> None:
+    first = _record({"status": "completed", "summary": "第一天"})
+    second = _record({"status": "pending"})
+    second["capture_time"] = "2026-08-28T20:00:00+08:00"
+    (tmp_path / "first.json").write_text(json.dumps(first), encoding="utf-8")
+    (tmp_path / "second.json").write_text(json.dumps(second), encoding="utf-8")
+
+    assert available_analysis_dates(_config(tmp_path)) == [date(2026, 8, 27)]
 
 
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:

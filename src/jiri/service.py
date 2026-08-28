@@ -364,6 +364,25 @@ def show_daily_analyses(config: Config, target_date: date) -> int:
     return len(matches)
 
 
+def available_analysis_dates(config: Config, date_from: date | None = None, date_to: date | None = None) -> list[date]:
+    """返回拥有已完成分析的日期，供交互式浏览器按时间翻页。"""
+
+    result: set[date] = set()
+    for metadata_path in config.archive.rglob("*.json"):
+        if not _is_video_metadata(metadata_path):
+            continue
+        record = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if record.get("analysis", {}).get("status") != "completed":
+            continue
+        try:
+            capture_date = datetime.fromisoformat(record["capture_time"]).date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (date_from is None or capture_date >= date_from) and (date_to is None or capture_date <= date_to):
+            result.add(capture_date)
+    return sorted(result)
+
+
 def _is_video_metadata(path: Path) -> bool:
     """排除周报、导出等非视频旁车 JSON。"""
 

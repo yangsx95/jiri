@@ -13,7 +13,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 
 from .config import DEFAULT_CONFIG_PATH, default_config_text, load_config
 from .setup import download_model, install_analysis_dependencies, install_transcription_backend
-from .service import analyze_all, import_videos, review_period, show_daily_analyses, status, transcribe_all
+from .service import available_analysis_dates, analyze_all, import_videos, review_period, show_daily_analyses, status, transcribe_all
 
 app = typer.Typer(help="积日：本地优先的日课视频归档与转写工具。", no_args_is_help=True)
 DEFAULT_INBOX = Path.home() / "Movies" / "VlogInbox"
@@ -170,6 +170,36 @@ def show(
     except RuntimeError as error:
         typer.echo(f"无法查看分析：{error}", err=True)
         raise typer.Exit(code=1) from error
+
+
+@app.command()
+def browse(
+    date_from: str | None = typer.Option(None, "--from", help="浏览起始日期（YYYY-MM-DD）。"),
+    date_to: str | None = typer.Option(None, "--to", help="浏览结束日期（YYYY-MM-DD）。"),
+    config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
+) -> None:
+    """交互式逐日查看已保存分析；p/n 翻页，q 退出。"""
+
+    settings = load_config(config)
+    dates = available_analysis_dates(settings, _parse_date(date_from), _parse_date(date_to))
+    if not dates:
+        typer.echo("没有可浏览的已完成分析；请先运行 jiri analyze", err=True)
+        raise typer.Exit(code=1)
+    console = Console()
+    index = len(dates) - 1
+    while True:
+        console.clear()
+        console.print(f"[bold]日课分析浏览 {index + 1}/{len(dates)}[/bold]")
+        show_daily_analyses(settings, dates[index])
+        command = console.input("\n[p] 前一天  [n] 后一天  [q] 退出：").strip().lower()
+        if command in {"q", "quit", "exit"}:
+            return
+        if command in {"p", "prev", "previous"}:
+            index = max(0, index - 1)
+        elif command in {"n", "next"}:
+            index = min(len(dates) - 1, index + 1)
+        else:
+            console.print("请输入 p、n 或 q。")
 
 
 def _transcription_worker(settings, force: bool, profile: str | None, backend: str | None, events) -> None:
