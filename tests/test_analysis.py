@@ -109,8 +109,10 @@ def test_daily_analysis_validates_json_response(monkeypatch, tmp_path: Path) -> 
     )
     assert result["status"] == "completed"
     assert result["improvements"][0]["evidence"]["quote"] == "完成了第一章"
-    assert result["prompt_source"] == "config.toml"
-    assert "TOML 内联的日分析提示词" in requests[0]["messages"][0]["content"]
+    assert result["prompt_source"] == "built-in + config.toml"
+    system_prompt = requests[0]["messages"][0]["content"]
+    assert "日课视频复盘教练" in system_prompt
+    assert "TOML 内联的日分析提示词" in system_prompt
 
 
 def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
@@ -118,8 +120,8 @@ def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
     assert "[analysis]" in text
     assert 'api_key_env = "JIRI_ANALYSIS_API_KEY"' in text
     parsed = tomllib.loads(text)
-    assert "日课视频复盘教练" in parsed["analysis"]["daily_prompt"]
-    assert "日课长期复盘教练" in parsed["analysis"]["review_prompt"]
+    assert "目标清晰度" in parsed["analysis"]["daily_prompt"]
+    assert "持续进步" in parsed["analysis"]["review_prompt"]
 
 
 def test_setup_creates_sample_config_when_missing(tmp_path: Path, monkeypatch) -> None:
@@ -131,4 +133,4 @@ def test_setup_creates_sample_config_when_missing(tmp_path: Path, monkeypatch) -
 
     parsed = tomllib.loads(sample_config.read_text(encoding="utf-8"))
     assert parsed["paths"]["archive"] == str(tmp_path / "archive")
-    assert "日课视频复盘教练" in parsed["analysis"]["daily_prompt"]
+    assert "目标清晰度" in parsed["analysis"]["daily_prompt"]

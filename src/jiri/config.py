@@ -128,8 +128,8 @@ enabled = false
 # model = "your-model"
 api_key_env = "JIRI_ANALYSIS_API_KEY"
 timeout_seconds = 60
-daily_prompt = """{DEFAULT_DAILY_PROMPT}"""
-review_prompt = """{DEFAULT_REVIEW_PROMPT}"""
+daily_prompt = """重点关注目标清晰度、具体产出、阻碍根因和下一步行动。"""
+review_prompt = """重点识别持续进步、重复出现的阻碍，以及下一周期最重要的行动。"""
 # daily_prompt_file = "~/.config/jiri/prompts/daily-review.txt"
 # review_prompt_file = "~/.config/jiri/prompts/period-review.txt"
 '''

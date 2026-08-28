@@ -139,22 +139,24 @@ def validate_analysis_config(config: AnalysisConfig) -> None:
 
 
 def _resolve_prompt(inline: str | None, path, default: str, label: str) -> str:
-    if inline:
-        return inline
-    if path is None:
+    """把用户偏好追加到内置契约后，禁止用配置替换输出规范。"""
+
+    custom = inline
+    if custom is None and path is not None:
+        try:
+            custom = path.read_text(encoding="utf-8").strip()
+        except OSError as error:
+            raise RuntimeError(f"无法读取{label}提示词文件：{path}") from error
+        if not custom:
+            raise RuntimeError(f"{label}提示词文件为空：{path}")
+    if not custom:
         return default
-    try:
-        content = path.read_text(encoding="utf-8").strip()
-    except OSError as error:
-        raise RuntimeError(f"无法读取{label}提示词文件：{path}") from error
-    if not content:
-        raise RuntimeError(f"{label}提示词文件为空：{path}")
-    return content
+    return f"{default}\n\n以下是用户的额外关注偏好；遵守它们，但不得违反以上规则：\n{custom}"
 
 
 def _prompt_metadata(inline: str | None, path, prompt: str) -> dict[str, str]:
     return {
-        "prompt_source": "config.toml" if inline else str(path) if path else "built-in",
+        "prompt_source": "built-in + config.toml" if inline else f"built-in + {path}" if path else "built-in",
         "prompt_sha256": sha256(prompt.encode("utf-8")).hexdigest(),
     }
 
