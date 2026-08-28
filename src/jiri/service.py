@@ -282,6 +282,7 @@ def analyze_all(config: Config, force: bool = False, date_from: date | None = No
 
     validate_analysis_config(config.analysis)
     counts = {"found": 0, "completed": 0, "failed": 0, "skipped": 0}
+    candidates: list[tuple[Path, dict[str, Any]]] = []
     for metadata_path in sorted(config.archive.rglob("*.json")):
         if not _is_video_metadata(metadata_path):
             continue
@@ -291,20 +292,26 @@ def analyze_all(config: Config, force: bool = False, date_from: date | None = No
         if record.get("transcription", {}).get("status") != "completed":
             counts["skipped"] += 1
             continue
-        counts["found"] += 1
+        candidates.append((metadata_path, record))
+
+    counts["found"] = len(candidates)
+    for current, (metadata_path, record) in enumerate(candidates, start=1):
         if not force and record.get("analysis", {}).get("status") == "completed":
             counts["skipped"] += 1
+            print(f"[{current}/{counts['found']}] 跳过：{metadata_path.name}（已有分析结果）")
             continue
+        print(f"\n[{current}/{counts['found']}] 正在分析：{metadata_path.name}")
+        print("  正在将转写文本发送给 AI，请稍候...")
         try:
             record["analysis"] = analyze_daily_record(record, config.analysis)
             write_json_atomic(metadata_path, record)
             counts["completed"] += 1
-            print(f"已分析：{metadata_path.name}")
+            _print_daily_analysis(record["analysis"])
         except Exception as error:
             record["analysis"] = {"status": "failed", "error": str(error)}
             write_json_atomic(metadata_path, record)
             counts["failed"] += 1
-            print(f"分析失败：{metadata_path.name}：{error}")
+            print(f"  分析失败：{error}")
     return counts
 
 
@@ -325,10 +332,16 @@ def review_period(config: Config, date_from: date | None = None, date_to: date |
             records.append(record)
     if not records:
         raise RuntimeError("该时间范围内没有已完成的日分析，请先运行 jiri analyze")
+    print(f"正在汇总 {len(records)} 条日分析（{start.isoformat()} 至 {end.isoformat()}）...")
     review = analyze_period(records, config.analysis, start.isoformat(), end.isoformat())
     output_path = config.archive / ".jiri" / "reviews" / f"{start.isoformat()}_to_{end.isoformat()}.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(output_path, review)
+    print("\n趋势回顾")
+    print(f"  {review.get('overview', '无摘要')}")
+    _print_list("可见进步", review.get("progress", []))
+    _print_list("重复模式", review.get("recurring_patterns", []))
+    _print_list("下周期重点", review.get("focus_next_period", []))
     return output_path
 
 
@@ -348,3 +361,39 @@ def _in_date_range(record: dict[str, Any], date_from: date | None, date_to: date
     except (KeyError, TypeError, ValueError):
         return False
     return (date_from is None or capture_date >= date_from) and (date_to is None or capture_date <= date_to)
+
+
+def _print_daily_analysis(analysis: dict[str, Any]) -> None:
+    """在 CLI 中展示足够行动导向的摘要，完整结果仍写入 JSON。"""
+
+    print(f"  完成：{analysis.get('summary', '无摘要')}")
+    _print_list("亮点", analysis.get("highlights", []))
+    improvements = analysis.get("improvements", [])
+    if improvements:
+        print("  可改进之处：")
+        for item in improvements:
+            print(f"    {item.get('priority', '-')}. {item.get('issue', '未说明问题')}")
+            evidence = item.get("evidence", {})
+            timestamp = evidence.get("timestamp_seconds")
+            quote = evidence.get("quote")
+            if timestamp is not None or quote:
+                parts = []
+                if timestamp is not None:
+                    parts.append(_format_timestamp(float(timestamp)))
+                if quote:
+                    parts.append(f"“{quote}”")
+                print(f"       依据：{' — '.join(parts)}")
+            print(f"       下一步：{item.get('action', '未提供')}")
+    _print_list("明日重点", analysis.get("tomorrow_focus", []))
+
+
+def _print_list(label: str, items: list[Any]) -> None:
+    if items:
+        print(f"  {label}：{'；'.join(str(item) for item in items)}")
+
+
+def _format_timestamp(seconds: float) -> str:
+    total = max(0, int(seconds))
+    minutes, seconds = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"

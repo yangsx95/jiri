@@ -29,7 +29,7 @@ def _config(tmp_path: Path) -> Config:
     return Config(inbox=tmp_path / "inbox", archive=tmp_path, analysis=AnalysisConfig(enabled=True, model="test-model"))
 
 
-def test_analyze_all_writes_result_and_skips_completed(tmp_path: Path, monkeypatch) -> None:
+def test_analyze_all_writes_result_and_skips_completed(tmp_path: Path, monkeypatch, capsys) -> None:
     metadata = tmp_path / "2026-08-27-001.json"
     metadata.write_text(json.dumps(_record()), encoding="utf-8")
     expected = {"status": "completed", "summary": "完成了第一章", "confidence": "high"}
@@ -38,6 +38,9 @@ def test_analyze_all_writes_result_and_skips_completed(tmp_path: Path, monkeypat
 
     assert analyze_all(_config(tmp_path), date_from=date(2026, 8, 27)) == {"found": 1, "completed": 1, "failed": 0, "skipped": 0}
     assert json.loads(metadata.read_text(encoding="utf-8"))["analysis"] == expected
+    output = capsys.readouterr().out
+    assert "[1/1] 正在分析" in output
+    assert "完成：完成了第一章" in output
     assert analyze_all(_config(tmp_path)) == {"found": 1, "completed": 0, "failed": 0, "skipped": 1}
 
 
