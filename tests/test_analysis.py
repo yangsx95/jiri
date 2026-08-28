@@ -90,6 +90,20 @@ def test_render_daily_analyses_returns_screen_safe_text(tmp_path: Path) -> None:
     assert "完成：第一天" in rendered
 
 
+def test_compact_daily_rendering_omits_long_evidence_and_actions(tmp_path: Path) -> None:
+    metadata = tmp_path / "2026-08-27-001.json"
+    analysis = {
+        "status": "completed", "summary": "第一天", "highlights": ["持续记录"], "dimension_assessments": [], "tomorrow_focus": ["明日任务"],
+        "improvements": [{"priority": 1, "issue": "睡眠不足", "evidence": {"timestamp_seconds": 12, "quote": "非常长的原话证据"}, "action": "非常长的行动方案"}],
+    }
+    metadata.write_text(json.dumps(_record(analysis)), encoding="utf-8")
+
+    rendered = render_daily_analyses(_config(tmp_path), date(2026, 8, 27), compact=True)
+    assert "睡眠不足" in rendered
+    assert "非常长的原话证据" not in rendered
+    assert "非常长的行动方案" not in rendered
+
+
 def test_available_analysis_dates_returns_only_completed_days(tmp_path: Path) -> None:
     first = _record({"status": "completed", "summary": "第一天"})
     second = _record({"status": "pending"})

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
 from .config import DEFAULT_CONFIG_PATH, default_config_text, load_config
@@ -194,12 +195,20 @@ def browse(
         raise typer.Exit(code=1)
     console = Console()
     index = len(dates) - 1
-    with _raw_key_mode(), console.screen(hide_cursor=True):
+    with _raw_key_mode(), console.screen(hide_cursor=True, style="on #102a43"):
         while True:
             console.clear()
-            console.print(f"[bold]日课分析浏览 {index + 1}/{len(dates)}[/bold]")
-            console.print(render_daily_analyses(settings, dates[index]), markup=False)
-            console.print("\n[dim]p 前一天   n 后一天   q 退出[/dim]")
+            console.print(
+                Panel(
+                    render_daily_analyses(settings, dates[index], compact=True),
+                    title=f"[bold cyan]日课分析浏览 {index + 1}/{len(dates)}[/bold cyan]",
+                    border_style="bright_cyan",
+                    padding=(1, 2),
+                    expand=True,
+                ),
+                markup=False,
+            )
+            console.print("[bold cyan]p[/bold cyan] 前一天    [bold cyan]n[/bold cyan] 后一天    [bold cyan]q[/bold cyan] 退出")
             key = sys.stdin.read(1).lower()
             if key == "q":
                 return
