@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import multiprocessing
+import sys
+import termios
+import tty
+from contextlib import contextmanager
 from datetime import date, datetime
 from queue import Empty
 from pathlib import Path
@@ -178,28 +182,28 @@ def browse(
     date_to: str | None = typer.Option(None, "--to", help="浏览结束日期（YYYY-MM-DD）。"),
     config: Path = typer.Option(DEFAULT_CONFIG_PATH, help="配置文件路径。"),
 ) -> None:
-    """交互式逐日查看已保存分析；p/n 翻页，q 退出。"""
+    """全屏逐日查看已保存分析；p/n 立即翻页，q 退出。"""
 
     settings = load_config(config)
     dates = available_analysis_dates(settings, _parse_date(date_from), _parse_date(date_to))
     if not dates:
         typer.echo("没有可浏览的已完成分析；请先运行 jiri analyze", err=True)
         raise typer.Exit(code=1)
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        typer.echo("jiri browse 需要在交互式终端中运行", err=True)
+        raise typer.Exit(code=1)
     console = Console()
     index = len(dates) - 1
-    while True:
-        console.clear()
-        console.print(f"[bold]日课分析浏览 {index + 1}/{len(dates)}[/bold]")
-        show_daily_analyses(settings, dates[index])
-        command = console.input("\n[p] 前一天  [n] 后一天  [q] 退出：").strip().lower()
-        if command in {"q", "quit", "exit"}:
-            return
-        if command in {"p", "prev", "previous"}:
-            index = max(0, index - 1)
-        elif command in {"n", "next"}:
-            index = min(len(dates) - 1, index + 1)
-        else:
-            console.print("请输入 p、n 或 q。")
+    with _raw_key_mode(), console.screen(hide_cursor=True):
+        while True:
+            console.clear()
+            console.print(f"[bold]日课分析浏览 {index + 1}/{len(dates)}[/bold]")
+            show_daily_analyses(settings, dates[index])
+            console.print("\n[dim]p 前一天   n 后一天   q 退出[/dim]")
+            key = sys.stdin.read(1).lower()
+            if key == "q":
+                return
+            index = _move_browser_index(index, key, len(dates))
 
 
 def _transcription_worker(settings, force: bool, profile: str | None, backend: str | None, events) -> None:
@@ -316,6 +320,29 @@ def _parse_date(value: str | None) -> date | None:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError as error:
         raise typer.BadParameter("日期必须是 YYYY-MM-DD，例如 2026-08-27") from error
+
+
+@contextmanager
+def _raw_key_mode():
+    """临时关闭行缓冲和回显，使浏览器能立即响应单个按键。"""
+
+    descriptor = sys.stdin.fileno()
+    previous = termios.tcgetattr(descriptor)
+    try:
+        tty.setraw(descriptor)
+        yield
+    finally:
+        termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
+
+
+def _move_browser_index(index: int, key: str, total: int) -> int:
+    """根据单个按键计算浏览器页码，并在边界停留。"""
+
+    if key in {"p", "h"}:
+        return max(0, index - 1)
+    if key in {"n", "l"}:
+        return min(total - 1, index + 1)
+    return index
 
 
 @app.command(name="status")

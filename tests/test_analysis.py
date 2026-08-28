@@ -91,6 +91,14 @@ def test_available_analysis_dates_returns_only_completed_days(tmp_path: Path) ->
     assert available_analysis_dates(_config(tmp_path)) == [date(2026, 8, 27)]
 
 
+def test_browser_navigation_uses_single_keys_and_stays_in_bounds() -> None:
+    assert cli._move_browser_index(2, "p", 3) == 1
+    assert cli._move_browser_index(1, "n", 3) == 2
+    assert cli._move_browser_index(0, "p", 3) == 0
+    assert cli._move_browser_index(2, "n", 3) == 2
+    assert cli._move_browser_index(1, "x", 3) == 1
+
+
 def test_daily_analysis_validates_json_response(monkeypatch) -> None:
     dimensions = [
         {"id": item.id, "label": item.label, "assessment": "有记录", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "next_action": None}
