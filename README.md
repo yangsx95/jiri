@@ -52,6 +52,14 @@ jiri review --from 2026-08-01 --to 2026-08-31
 
 单日分析会写回视频的同名 JSON；周/月回顾保存在归档目录的 `.jiri/reviews/` 中。每条改进建议都包含转写证据，或明确标记为信息不足。
 
+如需自定义提示词，在 `[analysis]` 中指定文本文件。日分析和周期回顾可独立替换；相对路径相对 `config.toml` 所在目录。自定义提示词仍会自动附加 JSON Schema，以保证命令能够稳定读取结果。
+
+```toml
+[analysis]
+daily_prompt_file = "prompts/daily-review.txt"
+review_prompt_file = "prompts/period-review.txt"
+```
+
 ## 规划
 
 详细技术方案见 [docs/technical-plan.md](docs/technical-plan.md)。

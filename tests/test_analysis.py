@@ -79,18 +79,28 @@ def test_show_daily_analyses_reads_saved_result_without_calling_ai(tmp_path: Pat
     assert "完成：第一天" in output
 
 
-def test_daily_analysis_validates_json_response(monkeypatch) -> None:
+def test_daily_analysis_validates_json_response(monkeypatch, tmp_path: Path) -> None:
     response = type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps({
         "summary": "完成第一章", "completed_items": ["第一章"], "planned_items": ["整理笔记"], "blockers": [], "highlights": ["有明确计划"],
         "improvements": [{"priority": 1, "issue": "缺少产出细节", "evidence": {"timestamp_seconds": 0, "quote": "完成了第一章"}, "action": "说明笔记数量"}],
         "tomorrow_focus": ["整理笔记"], "confidence": "high"
     })})})]})
-    client = type("Client", (), {"chat": type("Chat", (), {"completions": type("Completions", (), {"create": lambda self, **kwargs: response})()})()})()
+    requests = []
+
+    def create(self, **kwargs):
+        requests.append(kwargs)
+        return response
+
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": type("Completions", (), {"create": create})()})()})()
     monkeypatch.setattr(analyzer, "_client", lambda config: client)
 
-    result = analyzer.analyze_daily_record(_record(), AnalysisConfig(enabled=True, model="test-model"))
+    prompt_file = tmp_path / "daily.txt"
+    prompt_file.write_text("这是用户定制的日分析提示词，要求更加关注学习方法。", encoding="utf-8")
+    result = analyzer.analyze_daily_record(_record(), AnalysisConfig(enabled=True, model="test-model", daily_prompt_file=prompt_file))
     assert result["status"] == "completed"
     assert result["improvements"][0]["evidence"]["quote"] == "完成了第一章"
+    assert result["prompt_source"] == str(prompt_file)
+    assert "用户定制的日分析提示词" in requests[0]["messages"][0]["content"]
 
 
 def test_default_config_includes_analysis_section(tmp_path: Path) -> None:
