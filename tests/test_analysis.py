@@ -33,6 +33,7 @@ def test_analyze_all_writes_result_and_skips_completed(tmp_path: Path, monkeypat
     metadata = tmp_path / "2026-08-27-001.json"
     metadata.write_text(json.dumps(_record()), encoding="utf-8")
     expected = {"status": "completed", "summary": "完成了第一章", "confidence": "high"}
+    monkeypatch.setattr(analyzer, "validate_analysis_config", lambda config: None)
     monkeypatch.setattr(analyzer, "analyze_daily_record", lambda record, config: expected)
 
     assert analyze_all(_config(tmp_path), date_from=date(2026, 8, 27)) == {"found": 1, "completed": 1, "failed": 0, "skipped": 0}
@@ -40,9 +41,24 @@ def test_analyze_all_writes_result_and_skips_completed(tmp_path: Path, monkeypat
     assert analyze_all(_config(tmp_path)) == {"found": 1, "completed": 0, "failed": 0, "skipped": 1}
 
 
+def test_analyze_all_preserves_records_when_startup_configuration_is_invalid(tmp_path: Path, monkeypatch) -> None:
+    metadata = tmp_path / "2026-08-27-001.json"
+    original = _record()
+    metadata.write_text(json.dumps(original), encoding="utf-8")
+
+    def fail_validation(config) -> None:
+        raise RuntimeError("未设置环境变量 DEEPSEEK_API_KEY")
+
+    monkeypatch.setattr(analyzer, "validate_analysis_config", fail_validation, raising=False)
+    with pytest.raises(RuntimeError, match="DEEPSEEK_API_KEY"):
+        analyze_all(_config(tmp_path))
+    assert json.loads(metadata.read_text(encoding="utf-8")) == original
+
+
 def test_review_writes_hidden_summary_that_status_ignores(tmp_path: Path, monkeypatch) -> None:
     metadata = tmp_path / "2026-08-27-001.json"
     metadata.write_text(json.dumps(_record({"status": "completed", "summary": "第一天"})), encoding="utf-8")
+    monkeypatch.setattr(analyzer, "validate_analysis_config", lambda config: None)
     monkeypatch.setattr(analyzer, "analyze_period", lambda records, config, start, end: {"status": "completed", "overview": "保持推进"})
 
     output = review_period(_config(tmp_path), date(2026, 8, 27), date(2026, 8, 27))

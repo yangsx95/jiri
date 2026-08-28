@@ -129,6 +129,12 @@ def _client(config: AnalysisConfig):
     return OpenAI(api_key=api_key, base_url=config.api_base or None, timeout=config.timeout_seconds)
 
 
+def validate_analysis_config(config: AnalysisConfig) -> None:
+    """在处理任何视频前验证分析环境，避免配置错误污染旁车状态。"""
+
+    _client(config)
+
+
 def _request_json(config: AnalysisConfig, system_prompt: str, payload: dict[str, Any], schema: type[BaseModel]) -> BaseModel:
     """使用 Chat Completions JSON 模式，兼容 OpenAI-compatible 服务。"""
 

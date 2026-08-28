@@ -278,8 +278,9 @@ def status(config: Config) -> dict[str, int]:
 def analyze_all(config: Config, force: bool = False, date_from: date | None = None, date_to: date | None = None) -> dict[str, int]:
     """为时间范围内已转写的视频补齐单日 AI 复盘。"""
 
-    from .analyzer import analyze_daily_record
+    from .analyzer import analyze_daily_record, validate_analysis_config
 
+    validate_analysis_config(config.analysis)
     counts = {"found": 0, "completed": 0, "failed": 0, "skipped": 0}
     for metadata_path in sorted(config.archive.rglob("*.json")):
         if not _is_video_metadata(metadata_path):
@@ -310,8 +311,9 @@ def analyze_all(config: Config, force: bool = False, date_from: date | None = No
 def review_period(config: Config, date_from: date | None = None, date_to: date | None = None) -> Path:
     """汇总已有日分析并写入归档库的 .jiri/reviews 中。"""
 
-    from .analyzer import analyze_period
+    from .analyzer import analyze_period, validate_analysis_config
 
+    validate_analysis_config(config.analysis)
     end = date_to or date.today()
     start = date_from or end - timedelta(days=6)
     records: list[dict[str, Any]] = []

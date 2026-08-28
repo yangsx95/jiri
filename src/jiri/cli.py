@@ -119,7 +119,11 @@ def analyze(
 ) -> None:
     """对已转写视频生成带证据的日课复盘。"""
 
-    counts = analyze_all(load_config(config), force=force, date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    try:
+        counts = analyze_all(load_config(config), force=force, date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    except RuntimeError as error:
+        typer.echo(f"分析无法启动：{error}", err=True)
+        raise typer.Exit(code=1) from error
     typer.echo(f"发现 {counts['found']} 个，完成 {counts['completed']} 个，跳过 {counts['skipped']} 个，失败 {counts['failed']} 个")
 
 
@@ -131,7 +135,11 @@ def review(
 ) -> None:
     """从已有日分析生成周/月趋势回顾。"""
 
-    output = review_period(load_config(config), date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    try:
+        output = review_period(load_config(config), date_from=_parse_date(date_from), date_to=_parse_date(date_to))
+    except RuntimeError as error:
+        typer.echo(f"回顾无法启动：{error}", err=True)
+        raise typer.Exit(code=1) from error
     typer.echo(f"已生成回顾：{output}")
 
 
